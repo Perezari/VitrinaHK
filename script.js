@@ -451,6 +451,7 @@ async function downloadPdf() {
             pdf.roundedRect(textX - width, textY, width, height, 3, 3, 'FD');
 
             const fixedValue = (label === 'מספר יחידה' 
+                 || label === 'הכנה עבור'
                  || label === 'גוון פרופיל' 
                  || label === 'מספר תוכנית'
                  || label === 'סוג זכוכית')
