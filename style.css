@@ -40,6 +40,7 @@ p.subtitle {
   padding: 24px;
   box-shadow: 0 6px 20px rgba(0,0,0,0.08);
   border: 1px solid #e0e6ed;
+  margin-top: 0px ;
 }
 
 .card.drawing-card {
@@ -54,7 +55,7 @@ p.subtitle {
 }
 
 .card h2 {
-  margin-top: 16;
+  margin-top: 0px;
   font-size: 20px;
   color: #34495e;
   border-bottom: 2px solid #ecf0f1;
@@ -255,7 +256,6 @@ text {
   margin-top: 16px;
 }
 
-.wrap > .card:first-child {
-  height: 76vh;         /* תפס 90% מגובה החלון */
-  padding-top: 0px;  /* ריווח מהסקולר */
+.card h2:nth-of-type(3) {
+  margin-top: 16px;
 }
