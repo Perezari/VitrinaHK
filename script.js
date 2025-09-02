@@ -585,9 +585,41 @@ function drawSVG() {
   const holeDiameter = parseFloat(document.getElementById('holeDiameter').value);
   const rightInset = parseFloat(document.getElementById('rightInset').value);
   const leftInset = parseFloat(document.getElementById('leftInset').value);
-
   const holeSpacing = 32;
   const numHoles = 4;
+  const profileType = document.getElementById('profileType').selectedOptions[0].text;
+
+  // ברירות מחדל
+  let GERONG = true;
+  let PAD_SIDES = 19;
+  let PAD_TOPBOT = 19;
+
+// התאמות לפי profileType
+switch(profileType) {
+    case "קואדרו":
+        innerFrameStrokeWidth = 0.5;
+        PAD_SIDES = 19;
+        PAD_TOPBOT = 19;
+		GERONG = true;
+        break;
+    case "זירו":
+        innerFrameStrokeWidth = 0.5;
+        PAD_SIDES = 45;
+        PAD_TOPBOT = 19;
+		GERONG = false;
+		break;
+	case "ג'נסיס":
+		PAD_SIDES = 0;
+		PAD_TOPBOT = 0;
+		GERONG = true;
+		break;
+    case "424":
+        innerFrameStrokeWidth = 0.5;
+        PAD_SIDES = 42;
+        PAD_TOPBOT = 42;
+		GERONG = true;
+        break;
+}
 
   svg.innerHTML = '';
   overlay.style.display = 'none';
@@ -598,57 +630,75 @@ const PAGE_HEIGHT = 600; // גובה אזור הציור ב-SVG
 const offsetX = (PAGE_WIDTH - width) / 2;
 const offsetY = (PAGE_HEIGHT - height) / 2;
 
-const outerRectX = offsetX;
-const outerRectY = offsetY;
-const outerRectW = width;
-const outerRectH = height;
+  // מלבן חיצוני
+  const outerRectX = offsetX;
+  const outerRectY = offsetY;
+  const outerRectW = width;
+  const outerRectH = height;
 
-const innerMargin = 10;
-const innerRectX = outerRectX + innerMargin;
-const innerRectY = outerRectY + innerMargin;
-const innerRectW = outerRectW - 2 * innerMargin;
-const innerRectH = outerRectH - 2 * innerMargin;
+  const outerRect = document.createElementNS("http://www.w3.org/2000/svg","rect");
+  outerRect.setAttribute("x", outerRectX);
+  outerRect.setAttribute("y", outerRectY);
+  outerRect.setAttribute("width", outerRectW);
+  outerRect.setAttribute("height", outerRectH);
+  outerRect.setAttribute("fill","none");
+  outerRect.setAttribute("stroke","#000");
+  outerRect.setAttribute("stroke-width","1");
+  svg.appendChild(outerRect);
 
-// מלבן חיצוני
-const outerRect = document.createElementNS("http://www.w3.org/2000/svg","rect");
-outerRect.setAttribute("x", outerRectX);
-outerRect.setAttribute("y", outerRectY);
-outerRect.setAttribute("width", outerRectW);
-outerRect.setAttribute("height", outerRectH);
-outerRect.setAttribute("fill","none");
-outerRect.setAttribute("stroke","#000");
-outerRect.setAttribute("stroke-width","1");
-svg.appendChild(outerRect);
+  // מלבן פנימי מחושב לפי PAD
+  const innerRectX = outerRectX + PAD_SIDES;
+  const innerRectY = outerRectY + PAD_TOPBOT;
+  const innerRectW = outerRectW - 2 * PAD_SIDES;
+  const innerRectH = outerRectH - 2 * PAD_TOPBOT;
 
-// מלבן פנימי
-const innerRect = document.createElementNS("http://www.w3.org/2000/svg","rect");
-innerRect.setAttribute("x", innerRectX);
-innerRect.setAttribute("y", innerRectY);
-innerRect.setAttribute("width", innerRectW);
-innerRect.setAttribute("height", innerRectH);
-innerRect.setAttribute("fill","none");
-innerRect.setAttribute("stroke","#000");
-innerRect.setAttribute("stroke-width","1");
-svg.appendChild(innerRect);
+  const innerRect = document.createElementNS("http://www.w3.org/2000/svg","rect");
+  innerRect.setAttribute("x", innerRectX);
+  innerRect.setAttribute("y", innerRectY);
+  innerRect.setAttribute("width", innerRectW);
+  innerRect.setAttribute("height", innerRectH);
+  innerRect.setAttribute("fill","none");
+  innerRect.setAttribute("stroke","#000");
+  innerRect.setAttribute("stroke-width","1");
+  svg.appendChild(innerRect);
 
-// קווים אלכסוניים (גרונג) בפינות
-const corners = [
-  {x1: outerRectX, y1: outerRectY, x2: innerRectX, y2: innerRectY}, // עליון שמאל
-  {x1: outerRectX + outerRectW, y1: outerRectY, x2: innerRectX + innerRectW, y2: innerRectY}, // עליון ימין
-  {x1: outerRectX, y1: outerRectY + outerRectH, x2: innerRectX, y2: innerRectY + innerRectH}, // תחתון שמאל
-  {x1: outerRectX + outerRectW, y1: outerRectY + outerRectH, x2: innerRectX + innerRectW, y2: innerRectY + innerRectH}, // תחתון ימין
-];
-
-corners.forEach(c => {
-  const line = document.createElementNS("http://www.w3.org/2000/svg","line");
-  line.setAttribute("x1", c.x1);
-  line.setAttribute("y1", c.y1);
-  line.setAttribute("x2", c.x2);
-  line.setAttribute("y2", c.y2);
-  line.setAttribute("stroke", "#000");
-  line.setAttribute("stroke-width", "1");
-  svg.appendChild(line);
-});
+  if (GERONG) {
+    // קווים אלכסוניים
+    const corners = [
+      {x1: outerRectX, y1: outerRectY, x2: innerRectX, y2: innerRectY},
+      {x1: outerRectX + outerRectW, y1: outerRectY, x2: innerRectX + innerRectW, y2: innerRectY},
+      {x1: outerRectX, y1: outerRectY + outerRectH, x2: innerRectX, y2: innerRectY + innerRectH},
+      {x1: outerRectX + outerRectW, y1: outerRectY + outerRectH, x2: innerRectX + innerRectW, y2: innerRectY + innerRectH}
+    ];
+    corners.forEach(c => {
+      const line = document.createElementNS("http://www.w3.org/2000/svg","line");
+      line.setAttribute("x1", c.x1);
+      line.setAttribute("y1", c.y1);
+      line.setAttribute("x2", c.x2);
+      line.setAttribute("y2", c.y2);
+      line.setAttribute("stroke", "#000");
+      line.setAttribute("stroke-width", "1");
+      svg.appendChild(line);
+    });
+  } else {
+    // קווים מלאים במקום גרונג
+    const lines = [
+      {x1: innerRectX - PAD_SIDES, y1: innerRectY, x2: innerRectX + innerRectW + PAD_SIDES, y2: innerRectY}, // עליון
+      {x1: innerRectX - PAD_SIDES, y1: innerRectY + innerRectH, x2: innerRectX + innerRectW + PAD_SIDES, y2: innerRectY + innerRectH}, // תחתון
+      {x1: innerRectX, y1: innerRectY, x2: innerRectX, y2: innerRectY + innerRectH}, // שמאל
+      {x1: innerRectX + innerRectW, y1: innerRectY, x2: innerRectX + innerRectW, y2: innerRectY + innerRectH} // ימין
+    ];
+    lines.forEach(c => {
+      const line = document.createElementNS("http://www.w3.org/2000/svg","line");
+      line.setAttribute("x1", c.x1);
+      line.setAttribute("y1", c.y1);
+      line.setAttribute("x2", c.x2);
+      line.setAttribute("y2", c.y2);
+      line.setAttribute("stroke", "#000");
+      line.setAttribute("stroke-width", "1");
+      svg.appendChild(line);
+    });
+  }
 
   // טקסט במרכז
   const txt = document.createElementNS("http://www.w3.org/2000/svg","text");
@@ -875,7 +925,6 @@ svg.appendChild(rightEnd2);
   spacingText.textContent = holeSpacing;
   svg.appendChild(spacingText);
   
-  
   // ===== קו מידה מרחק קידוח עליון =====
 const topDimX = offsetX + width + 30; // מיקום הקו מימין למלבן
 const firstHoleY = offsetY + topDistance;
@@ -920,11 +969,41 @@ expandViewBoxToContent(svg); // ⬅️ הוסף את השורה הזו
 
 }
 
-    document.getElementById('calcBtn').addEventListener('click', drawSVG);
+// Map של ספקים לפרופילים
+const profilesMap = {
+  bluran: ["קואדרו", "זירו"],
+  nilsen: ["424", "ג'נסיס"]
+};
 
+const sapakSelect = document.getElementById("Sapak");
+const profileSelect = document.getElementById("profileType");
 
-    drawSVG();
-	
+// פונקציה למילוי profileType
+function fillProfileOptions() {
+    const selectedSapak = sapakSelect.value;
+    const options = profilesMap[selectedSapak] || [];
+
+    // מחיקה של כל האפשרויות הישנות
+    profileSelect.innerHTML = "";
+
+    // הוספת אפשרויות חדשות
+    options.forEach(profile => {
+        const optionEl = document.createElement("option");
+        optionEl.value = profile;
+        optionEl.textContent = profile;
+        profileSelect.appendChild(optionEl);
+    });
+}
+
+// מילוי בפעם הראשונה לפי הספק שנבחר כבר
+fillProfileOptions();
+
+// מאזין לשינוי בספק
+sapakSelect.addEventListener("change", fillProfileOptions);
+
+document.getElementById('calcBtn').addEventListener('click', drawSVG);
+
+drawSVG();	
 	
 const downloadBtn = document.getElementById('downloadBtn');
 if (downloadBtn) {
