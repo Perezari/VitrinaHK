@@ -13,6 +13,11 @@
     <div class="wrap">
         <div class="card">
             <h2>הגדרת מידות 📐</h2>
+            <div class="file-upload">
+                <label for="excelFile" class="file-label">...</label>
+                <input type="file" id="excelFile" accept=".xls,.xlsx">
+                <span class="file-name">לא נבחר קובץ</span>
+            </div>
             <div class="row">
                 <div><label for="frontW">רוחב חזית</label><input id="frontW" type="number" value="600" min="100"></div>
                 <div><label for="cabH">גובה חזית</label><input id="cabH" type="number" value="200" min="50"></div>
@@ -27,7 +32,6 @@
                 <div><label for="leftInset">צד שמאל</label><input id="leftInset" type="number" value="28" min="5"></div>
             </div>
             <h2>פרטי יחידה 📝</h2>
-
             <div>
                 <label for="Sapak">הזמנה עבור</label>
                 <select id="Sapak">
@@ -35,7 +39,6 @@
                     <option value="nilsen">נילסן</option>
                 </select>
             </div>
-
             <div class="row">
                 <div>
                     <label for="planNum">מספר תוכנית</label>
@@ -82,16 +85,34 @@
                 </div>
             </div>
             <div class="buttons-container">
-                <button id="downloadBtn" type="button">הורד PDF 💾</button>
+                <button id="downloadBtn" type="button">PDF 💾</button>
+                <button id="batchSaveBtn" type="button">PDF BATCH 💾</button>
             </div>
         </div>
-
         <div class="card drawing-card">
             <svg id="svg" viewBox="0 0 1000 1000" preserveAspectRatio="xMidYMin slice"></svg>
             <div class="svg-overlay">מחשב שרטוט...</div>
         </div>
     </div>
-
+    <div id="overlay" style="
+         display:none;
+         position:fixed;
+         top:0;
+         left:0;
+         width:100%;
+         height:100%;
+         background:rgba(0,0,0,0.5);
+         z-index:9999;
+         justify-content:center;
+         align-items:center;
+         flex-direction:column;
+         color:white;
+         font-size:24px;
+         font-weight:bold;">
+        <div id="overlayText">שומר קבצים...</div>
+        <div id="overlayAnimation" style="margin-top:20px;">⏳</div>
+    </div>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/svg2pdf.js@2.5.0/dist/svg2pdf.umd.min.js"></script>
     <script src="Alef-normal.js"></script>
