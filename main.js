@@ -481,10 +481,10 @@ async function downloadPdf() {
 
         function addLogo(pdf) {
             const supplier = unitDetails.Sapak;
-            const logo = ProfileConfig.getLogoBySupplier(supplier);
+            const logo = ProfileConfig.getLogoBySupplier("avivi");
             if (!supplier || !logo) return;
 
-            const logoWidth = 25;
+            const logoWidth = 40;
             const logoHeight = 25;
             pdf.addImage(logo, "PNG", 10, 10, logoWidth, logoHeight);
         }
