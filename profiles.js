@@ -6,7 +6,7 @@ window.ProfileConfig = (function () {
     // מיפוי ספקים לפרופילים הזמינים
     const SUPPLIERS_PROFILES_MAP = {
         bluran: ["קואדרו", "זירו"],
-        nilsen: ["424", "ג'נסיס"]
+        nilsen: ["דגם424", "ג'נסיס"]
     };
 
     // לוגואים של ספקים
@@ -72,7 +72,7 @@ window.ProfileConfig = (function () {
             description: "קידוח לצירים בקוטר 2.5 מ\"מ", //תיאור
             CenterNotes: "דלת קלפה", //טקסט במרכז
         },
-        "424": {
+        "דגם424": {
             // מסגרת פנימית
             innerFrameStroke: "#2c3e50",
             innerFrameStrokeWidth: 0.5,
