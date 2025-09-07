@@ -478,18 +478,45 @@ async function downloadPdf() {
         addFieldBox('הכנה עבור', unitDetails.prepFor);
 
         // ====== הוספת לוגו לפי ספק ======
-
         function addLogo(pdf) {
             const supplier = unitDetails.Sapak;
-            const logo = ProfileConfig.getLogoBySupplier("avivi");
+            const logo = ProfileConfig.getLogoBySupplier(supplier);
             if (!supplier || !logo) return;
 
             const logoWidth = 40;
             const logoHeight = 25;
             pdf.addImage(logo, "PNG", 10, 10, logoWidth, logoHeight);
         }
+		
+		async function addLogoSvg(pdf, logo) {
+			if (!logo) return;
 
-        addLogo(pdf);
+			let svgText;
+
+			// בדיקה אם זה Data URI (base64)
+			if (logo.startsWith("data:image/svg+xml")) {
+				const base64 = logo.split(",")[1];
+				svgText = atob(base64);
+			} else {
+				// SVG כטקסט רגיל
+				svgText = logo;
+			}
+
+			// ממירים ל־DOM
+			const svgElement = new DOMParser().parseFromString(svgText, "image/svg+xml").documentElement;
+
+			// מוסיפים ל־PDF
+			await pdf.svg(svgElement, {
+				x: 10,
+				y: 10,
+				width: 40,
+				height: 25
+			});
+		}
+
+		// לוגו מ־ProfileConfig (יכול להיות טקסט או Data URI)
+		const logo = ProfileConfig.getLogoBySupplier("avivi_svg"); 
+		await addLogoSvg(pdf, logo);
 
         function validateRequiredFields(fields) {
             let allValid = true;
