@@ -1051,39 +1051,69 @@ excelFile.addEventListener("change", function (e) {
         console.log("עמודות שהתקבלו:", Object.keys(excelRows[0]));
         console.log("דוגמה לשורה ראשונה:", excelRows[0]);
 
+        // מציאת יחידות שיש להן לפחות דלת ימין/שמאל
+        const validUnits = [...new Set(
+            excelRows
+                .filter(r => {
+                    const partName = (r['שם החלק'] || "").toLowerCase();
+                    return partName.includes("קלפה");
+                })
+                .map(r => String(r['יחידה']).trim())
+                .filter(u => u && u !== "undefined")
+        )];
+
+        if (validUnits.length === 0) {
+            alert("לא נמצאה אף יחידה עם דלת קלפה בקובץ. לא ניתן להמשיך.");
+
+            // השבתת כפתורים
+            batchSaveBtn.disabled = true;
+            batchSaveBtn.style.backgroundColor = "#ccc";
+            batchSaveBtn.style.cursor = "not-allowed";
+
+            downloadBtn.disabled = true;
+            downloadBtn.style.backgroundColor = "#ccc";
+            downloadBtn.style.cursor = "not-allowed";
+
+            // איפוס השרטוט
+            const svg = document.getElementById('svg');
+            const overlay = document.querySelector('.svg-overlay');
+            if (svg) svg.innerHTML = "";   // מוחק את תוכן ה־SVG
+            if (overlay) overlay.style.display = 'none';
+
+            return;
+        } else {
+            // הפעלה מחדש של כפתורים אם הכל תקין
+            batchSaveBtn.disabled = false;
+            batchSaveBtn.style.backgroundColor = "";
+            batchSaveBtn.style.cursor = "pointer";
+
+            downloadBtn.disabled = false;
+            downloadBtn.style.backgroundColor = "";
+            downloadBtn.style.cursor = "pointer";
+        }
+
         // הפיכת השדה unitNum לרשימה נפתחת אם הוא עדיין input
         if (unitNumInput.tagName.toLowerCase() === "input") {
             const select = document.createElement("select");
             select.id = "unitNum";
 
-            // מספרי היחידות מהקובץ, מסוננים
-            const units = [...new Set(
-                excelRows
-                    .map(r => String(r['יחידה']).trim())
-                    .filter(u => u && u !== "undefined")
-            )];
-
-            units.forEach((unit, index) => {
+            validUnits.forEach((unit, index) => {
                 const option = document.createElement("option");
                 option.value = unit;
                 option.textContent = unit;
                 select.appendChild(option);
 
-                // בחר אוטומטית את הערך הראשון
                 if (index === 0) select.value = unit;
             });
 
-            // מחליפים את השדה ב-DOM
             unitContainer.replaceChild(select, unitNumInput);
             unitNumInput = select;
         }
 
-        // מאזינים לשינוי ברשימה
         unitNumInput.addEventListener("change", function () {
             searchUnit(this.value);
         });
 
-        // ניסיון ראשוני אם כבר יש מספר יחידה בשדה
         searchUnit(unitNumInput.value);
     };
     reader.readAsArrayBuffer(file);
