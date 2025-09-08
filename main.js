@@ -1,353 +1,30 @@
 window.jsPDF = window.jspdf.jsPDF;
 function mm(v) { return Number.isFinite(v) ? v : 0; }
 
-// ==== פרמטרים להתאמה מהירה ====
-const PDF_ORIENTATION = 'l';   // landscape
-const PDF_SIZE = 'a4';
-const PAGE_MARGIN_MM = 1;     // מרווח למסך/תצוגה
-const EXTRA_SCALE = 1;  // הגדלה לתצוגה
+// Variables
+const svg = document.getElementById('svg');
+const overlay = document.querySelector('.svg-overlay');
+const downloadBtn = document.getElementById('downloadBtn');
+const batchSaveBtn = document.getElementById("batchSaveBtn");
+batchSaveBtn.style.display = 'none';
+const excelFileInput = document.getElementById('excelFile');
+const fileNameSpan = document.querySelector('.file-name');
+const sapakSelect = document.getElementById("Sapak");
+const profileSelect = document.getElementById("profileType");
+const frontW = document.getElementById("frontW");
+const cabH = document.getElementById("cabH");
+const topDistance = document.getElementById("topDistance");
+const holeDiameter = document.getElementById("holeDiameter");
+const rightInset = document.getElementById("rightInset");
+const leftInset = document.getElementById("leftInset");
+const unitContainer = document.getElementById("unitNum").parentElement;
+let unitNumInput = document.getElementById("unitNum");
+let excelRows = [];
 
-// ==== פרמטרים ייעודיים להדפסה (PDF) ====
-const PRINT_MIN_MARGIN_MM = 10;   // שוליים בטוחים להדפסה
-const PRINT_SAFE_SHRINK = 0.92; // כיווץ קל כדי למנוע חיתוך בקצה הנייר
-const PRINT_ALIGN = 'center'; // 'left' | 'center'
-
-// ==== גודל קבוע למסגרות ההערה (צהובות) ====
-// שחק עם הערכים עד שזה עוטף את כל הטקסט בהדפסה:
-const NOTE_BOX_W = 430;  // רוחב בפיקסלים-סגוליים של ה-SVG
-const NOTE_BOX_H = 30;   // גובה בפיקסלים-סגוליים של ה-SVG
-
-// ===== עזרי פונט עברית =====
-function ensureAlefFont(pdf) {
-    try {
-        const list = pdf.getFontList ? pdf.getFontList() : null;
-        const hasAlef = !!(list && (list.Alef || list['Alef']));
-        if (hasAlef) { pdf.setFont('Alef', 'normal'); return; }
-    } catch (_) { }
-    if (typeof window.registerAlefFontOn === 'function') {
-        const ok = window.registerAlefFontOn(pdf);
-        if (ok) { pdf.setFont('Alef', 'normal'); return; }
-    }
-    if (typeof alefBase64 === 'string' && alefBase64.length > 100) {
-        try {
-            pdf.addFileToVFS('Alef-Regular.ttf', alefBase64);
-            pdf.addFont('Alef-Regular.ttf', 'Alef', 'normal');
-            pdf.setFont('Alef', 'normal');
-            return;
-        } catch (e) { console.warn('Font registration from base64 failed:', e); }
-    }
-    console.warn('Alef font not found; Hebrew may not render correctly.');
-}
-
-function withTempInDOM(svgNode, work) {
-    const holder = document.createElement('div');
-    holder.style.position = 'fixed';
-    holder.style.left = '-10000px';
-    holder.style.top = '-10000px';
-    holder.style.opacity = '0';
-    document.body.appendChild(holder);
-    holder.appendChild(svgNode);
-    try { return work(svgNode); }
-    finally { document.body.removeChild(holder); }
-}
-
-function expandViewBoxToContent(svg, padding = 8) {
-    const bbox = svg.getBBox();
-    const minX = Math.floor(bbox.x - padding);
-    const minY = Math.floor(bbox.y - padding);
-    const width = Math.ceil(bbox.width + 2 * padding);
-    const height = Math.ceil(bbox.height + 2 * padding);
-    svg.setAttribute('viewBox', `${minX} ${minY} ${width} ${height}`);
-}
-
-// ===== המרת CSS לערכי attributes (stroke/dash/fill וכו׳) =====
-function inlineComputedStyles(svgRoot) {
-    svgRoot.querySelectorAll('*').forEach(el => {
-        const cs = window.getComputedStyle(el);
-
-        // === טקסט ===
-        if (el.tagName === 'text') {
-            if (!el.getAttribute('font-family')) el.setAttribute('font-family', 'Alef');
-            el.setAttribute('stroke', 'none');  // בטקסט אין stroke
-            return; // אין צורך להוסיף stroke/width/dash
-        }
-
-        // === stroke, stroke-width, stroke-dasharray ===
-        const stroke = cs.stroke && cs.stroke !== 'none' ? cs.stroke : null;
-        const strokeWidth = cs.strokeWidth && cs.strokeWidth !== '0px' ? parseFloat(cs.strokeWidth) : null;
-        const dash = cs.strokeDasharray && cs.strokeDasharray !== 'none' ? cs.strokeDasharray : null;
-
-        if (stroke) el.setAttribute('stroke', stroke);
-        if (strokeWidth) el.setAttribute('stroke-width', strokeWidth);
-        if (dash) el.setAttribute('stroke-dasharray', dash);
-
-        // עובי קו קבוע למרות סקייל
-        el.setAttribute('vector-effect', 'non-scaling-stroke');
-
-        // === קווי מידות ===
-        if (el.classList && el.classList.contains('dim')) {
-            if (!el.getAttribute('stroke')) el.setAttribute('stroke', 'black');
-            if (!el.getAttribute('stroke-width')) el.setAttribute('stroke-width', '0.6');
-        }
-
-        // === fill ===
-        const fillCss = cs.fill && cs.fill !== 'rgba(0, 0, 0, 1)' ? cs.fill : null;
-
-        if (['rect', 'path', 'polygon', 'polyline', 'circle', 'ellipse'].includes(el.tagName)) {
-            if (el.classList && el.classList.contains('note-box')) {
-                if (fillCss) el.setAttribute('fill', fillCss);
-                if (!el.getAttribute('stroke')) el.setAttribute('stroke', 'black');
-                if (!el.getAttribute('stroke-dasharray') && dash) el.setAttribute('stroke-dasharray', dash);
-            } else {
-                if (fillCss) {
-                    el.setAttribute('fill', fillCss);
-                } else if (!el.hasAttribute('fill')) {
-                    el.setAttribute('fill', 'none');
-                }
-            }
-        }
-    });
-}
-
-// ===== תיקון טקסט עברית (bidi-override) =====
-function fixHebrewText(svgRoot) {
-    const hebrewRegex = /[\u0590-\u05FF]/;
-    svgRoot.querySelectorAll('text').forEach(t => {
-        const txt = (t.textContent || '').trim();
-        if (!txt) return;
-        if (hebrewRegex.test(txt)) {
-            const reversed = txt.split('').reverse().join('');
-            t.textContent = reversed;
-            t.setAttribute('direction', 'ltr');
-            t.setAttribute('unicode-bidi', 'bidi-override');
-            t.setAttribute('font-family', 'Alef');
-        }
-    });
-    svgRoot.setAttribute('direction', 'rtl');
-}
-
-/**
- * מרכז מספרי מידות על הקווים האנכיים או אופקיים,
- * כולל תמיכה בטקסטים עם סיבוב (rotate)
- * -- הערות: שמרנו את השינויים שלך והוספנו אופסט קטן
- */
-function centerDimensionNumbers(svgRoot) {
-    const numRegex = /^[\d\s\.\-+×xX*]+(?:mm|מ"מ|)$/;
-
-    // גודל האופסט מהקו (יכול להיות חיובי או שלילי)
-    const offset = 20; // ניתן לשנות את הערך לפי הצורך
-
-    svgRoot.querySelectorAll('text').forEach(t => {
-        const raw = t.textContent || '';
-        const txt = raw.replace(/\s+/g, '');
-        if (!txt) return;
-
-        if (numRegex.test(txt)) {
-            // מרכז אופקי
-            t.setAttribute('text-anchor', 'middle');
-
-            // **שורה חדשה לשינוי גודל הפונט**
-            t.setAttribute('font-size', '15'); // הגדלתי מ-15 ל-18
-            t.setAttribute('font-family', 'Alef');
-
-            // --- הערות שלך: ביטלתי dominant-baseline / alignment-baseline כדי לא לשבור סיבוב
-            t.setAttribute('dominant-baseline', 'middle');
-            t.setAttribute('alignment-baseline', 'middle');
-            t.setAttribute('dy', '0.35em');
-
-            // אם הטקסט מסתובב, לחשב מחדש את ה-x וה-y עם אופסט קטן
-            const transform = t.getAttribute('transform');
-            if (transform && transform.includes('rotate')) {
-                const match = /rotate\(([-\d.]+),\s*([-\d.]+),\s*([-\d.]+)\)/.exec(transform);
-                if (match) {
-                    const xRot = parseFloat(match[2]);
-                    const yRot = parseFloat(match[3]);
-                    // הזזת הטקסט מהקו
-                    const angle = parseFloat(match[1]);
-                    if (Math.abs(angle) === 90) {
-                        // טקסט אנכי: הזזה אופקית
-                        t.setAttribute('x', xRot);
-                        t.setAttribute('y', yRot - 12);
-                    } else {
-                        // טקסט אופקי: הזזה אנכית
-                        t.setAttribute('x', xRot);
-                        t.setAttribute('y', yRot);
-                    }
-                }
-            } else {
-                // טקסט אופקי רגיל: הזזה אנכית מהקו
-                const y = parseFloat(t.getAttribute('y') || '0');
-                t.setAttribute('y', y - offset + 5);
-            }
-        }
-    });
-}
-
-// ===== חיצים במקום markers (תמיכה טובה יותר ב-PDF) =====
-function replaceMarkersWithTriangles(svgRoot) {
-    const lines = svgRoot.querySelectorAll('line, path, polyline');
-    lines.forEach(el => {
-        const hasMarker = el.getAttribute('marker-start') || el.getAttribute('marker-end');
-        if (!hasMarker) return;
-
-        // נתמוך בעיקר ב-line
-        if (el.tagName !== 'line') {
-            el.removeAttribute('marker-start');
-            el.removeAttribute('marker-end');
-            return;
-        }
-
-        const x1 = parseFloat(el.getAttribute('x1') || '0');
-        const y1 = parseFloat(el.getAttribute('y1') || '0');
-        const x2 = parseFloat(el.getAttribute('x2') || '0');
-        const y2 = parseFloat(el.getAttribute('y2') || '0');
-        const stroke = el.getAttribute('stroke') || '#000';
-        const sw = parseFloat(el.getAttribute('stroke-width') || '1');
-
-        const addTri = (x, y, angleRad) => {
-            const size = Math.max(2.5 * sw, 3);
-            const a = angleRad, s = size;
-            const p1 = `${x},${y}`;
-            const p2 = `${x - s * Math.cos(a - Math.PI / 8)},${y - s * Math.sin(a - Math.PI / 8)}`;
-            const p3 = `${x - s * Math.cos(a + Math.PI / 8)},${y - s * Math.sin(a + Math.PI / 8)}`;
-            const tri = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
-            tri.setAttribute('points', `${p1} ${p2} ${p3}`);
-            tri.setAttribute('fill', stroke);
-            tri.setAttribute('stroke', 'none');
-            el.parentNode.insertBefore(tri, el.nextSibling);
-        };
-
-        const ang = Math.atan2(y2 - y1, x2 - x1);
-        if (el.getAttribute('marker-start')) addTri(x1, y1, ang + Math.PI);
-        if (el.getAttribute('marker-end')) addTri(x2, y2, ang);
-
-        el.removeAttribute('marker-start');
-        el.removeAttribute('marker-end');
-    });
-}
-
-// ===== חישוב התאמה + מיקום (יישור לשמאל/מרכז) =====
-function fitAndPlaceBox(pdfWidth, pdfHeight, vbWidth, vbHeight, margin = 10, extraScale = 1.0, printShrink = 1.0, align = 'center') {
-    const rightSafeMargin = 45; // מרווח בטחון מצד ימין
-
-    // זמינות רוחב וגובה עם שוליים
-    const availW = pdfWidth - margin - rightSafeMargin;
-    const availH = pdfHeight - 2 * margin;
-    const vbRatio = vbWidth / vbHeight;
-    const pageRatio = availW / availH;
-
-    // התאמת מידות לשטח הזמין
-    let drawW, drawH;
-    if (vbRatio > pageRatio) {
-        drawW = availW;
-        drawH = drawW / vbRatio;
-    } else {
-        drawH = availH;
-        drawW = drawH * vbRatio;
-    }
-
-    // שימוש בסקלות נוספות
-    drawW *= extraScale * printShrink;
-    drawH *= extraScale * printShrink;
-
-    // ביטחון נוסף שלא יחרוג
-    if (drawW > availW) { const s = availW / drawW; drawW *= s; drawH *= s; }
-    if (drawH > availH) { const s = availH / drawH; drawW *= s; drawH *= s; }
-
-    // מיקום X לפי יישור
-    let x;
-    if (align === 'left') {
-        x = margin; // מתחיל משמאל
-    } else if (align === 'center') {
-        x = margin + (availW - drawW) / 2; // מרכז תוך כדי שמירה על rightSafeMargin
-    } else {
-        // אפשרות להוסיף ימין או אחרים בעתיד
-        x = margin;
-    }
-
-    // מיקום Y - תמיד מרכז אנכית
-    const y = (pdfHeight - drawH) / 2;
-
-    return { x, y, width: drawW, height: drawH };
-}
-
-/**
- * מכריח כל rect.note-box להיות בגודל קבוע NOTE_BOX_W × NOTE_BOX_H,
- * ממורכז סביב text.note-text שבאותו <g> — בלי לשנות stroke-width.
- */
-function forceNoteBoxesSize(svgRoot, w = NOTE_BOX_W, h = NOTE_BOX_H) {
-    const groups = svgRoot.querySelectorAll('g');
-    groups.forEach(g => {
-        const rect = g.querySelector('rect.note-box');
-        const text = g.querySelector('text.note-text');
-        if (!rect || !text) return;
-
-        // --- טקסט ממורכז וקריא ---
-        text.setAttribute('text-anchor', 'middle');
-        text.setAttribute('dominant-baseline', 'middle');
-        t.setAttribute('font-family', 'Alef');
-        text.setAttribute('font-size', '17');
-        if (!text.getAttribute('fill')) text.setAttribute('fill', '#111');
-
-        // מבטיח שהטקסט נכנס יפה במסגרת
-        const tb = text.getBBox();
-        const cx = tb.x + tb.width / 2;
-        const cy = tb.y + tb.height / 2;
-
-        // קופסה קבועה סביב הטקסט
-        const x = cx - w / 2 - 5;
-        const y = cy - h / 2 - 5;
-
-        rect.setAttribute('x', String(x));
-        rect.setAttribute('y', String(y));
-        rect.setAttribute('width', String(w));
-        rect.setAttribute('height', String(h));
-
-        // --- שיפורי נראות ---
-        rect.setAttribute('rx', '6'); // פינות עגולות
-        rect.setAttribute('ry', '6');
-        rect.setAttribute('vector-effect', 'non-scaling-stroke');
-        rect.setAttribute('shape-rendering', 'crispEdges');
-        rect.setAttribute('fill-opacity', '0.9');
-
-        // צבעים ברירת מחדל (אם לא קיימים)
-        if (!rect.getAttribute('stroke')) rect.setAttribute('stroke', 'black');
-        if (!rect.getAttribute('fill')) rect.setAttribute('fill', '#fff8b0');
-
-        // דש-דש נשמר להדפסה
-        const rc = getComputedStyle(rect);
-        const dash = rc.strokeDasharray && rc.strokeDasharray !== 'none' ? rc.strokeDasharray : null;
-        if (dash && !rect.getAttribute('stroke-dasharray')) {
-            rect.setAttribute('stroke-dasharray', dash);
-        }
-    });
-
-    // --- פילטר shadow (אם עדיין לא מוגדר) ---
-    if (!svgRoot.querySelector('#noteBoxShadow')) {
-        const defs = svgRoot.querySelector('defs') || svgRoot.insertBefore(document.createElementNS('http://www.w3.org/2000/svg', 'defs'), svgRoot.firstChild);
-        const filter = document.createElementNS('http://www.w3.org/2000/svg', 'filter');
-        filter.setAttribute('id', 'noteBoxShadow');
-        filter.setAttribute('x', '-10%');
-        filter.setAttribute('y', '-10%');
-        filter.setAttribute('width', '120%');
-        filter.setAttribute('height', '120%');
-        const fe = document.createElementNS('http://www.w3.org/2000/svg', 'feDropShadow');
-        fe.setAttribute('dx', '1');
-        fe.setAttribute('dy', '1');
-        fe.setAttribute('stdDeviation', '1');
-        fe.setAttribute('flood-color', '#888');
-        fe.setAttribute('flood-opacity', '0.5');
-        filter.appendChild(fe);
-        defs.appendChild(filter);
-    }
-
-    // להוסיף את הצל לכל note-box
-    svgRoot.querySelectorAll('rect.note-box').forEach(r => {
-        r.setAttribute('filter', 'url(#noteBoxShadow)');
-    });
-}
-
-// נקודת מידה כחולה שלא נעלמת ב-PDF ולא משתנה בעובי
+// Adds a small dot (circle) to the SVG at specified coordinates.
+// Sets default fill and stroke colors for visibility.
+// Ensures the stroke remains thin and sharp when scaling or printing.
+// Default radius is 2.2 units, but can be overridden.
 function addDimDot(svg, x, y, r = 2.2) {
     const c = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
     c.setAttribute('cx', x);
@@ -362,7 +39,166 @@ function addDimDot(svg, x, y, r = 2.2) {
     svg.appendChild(c);
 }
 
-// ====== פונקציית הייצוא ======
+// Adds a rotated note box with text to the SVG.
+// Temporarily measures the text to size the box with padding.
+// Inserts a <g> element containing the <rect> and <text>, rotated around the specified coordinates.
+// Default rotation angle is 90 degrees.
+function addNoteRotated(svg, x, y, text, angle = 90) {
+    // מחשבים BBox זמני כדי להתאים את הריבוע
+    const tempText = document.createElementNS("http://www.w3.org/2000/svg", "text");
+    tempText.setAttribute("class", "note-text");
+    tempText.setAttribute("x", x);
+    tempText.setAttribute("y", y);
+    tempText.setAttribute("text-anchor", "middle");
+    tempText.setAttribute("dominant-baseline", "middle");
+    tempText.textContent = text;
+    svg.appendChild(tempText);
+
+    const bbox = tempText.getBBox();
+    svg.removeChild(tempText);
+
+    const padding = 10; // היה 10 – נותן עוד ביטחון להדפסה
+    const rectX = bbox.x - padding;
+    const rectY = bbox.y - padding;
+    const rectW = bbox.width + padding * 2;
+    const rectH = bbox.height + padding * 2;
+
+    svg.insertAdjacentHTML("beforeend", `
+    <g transform="rotate(${angle}, ${x}, ${y})">
+      <rect class="note-box"
+            x="${rectX}" y="${rectY}"
+            width="${rectW}" height="${rectH}"></rect>
+      <text class="note-text"
+            x="${x}" y="${y}"
+            text-anchor="middle"
+            dominant-baseline="middle">
+        ${text}
+      </text>
+    </g>
+  `);
+}
+
+// Validates that all required input fields are filled.
+// Shows an alert and highlights the first empty field.
+// Returns true if all fields have values, false otherwise.
+function validateRequiredFields(fields) {
+    let allValid = true;
+    for (let id of fields) {
+        const input = document.getElementById(id);
+        if (input) {
+            if (input.value.trim() === '') {
+                alert('אנא מלא את השדה: ' + input.previousElementSibling.textContent);
+                input.style.border = '2px solid red';
+                input.focus();
+                allValid = false;
+                break; // עוצר בלחיצה הראשונה
+            } else {
+                // אם השדה לא ריק – מחזיר את העיצוב הרגיל
+                input.style.border = '';
+            }
+        }
+    }
+    return allValid;
+}
+
+// Populates the profile dropdown based on the selected supplier
+function fillProfileOptions() {
+    const selectedSapak = sapakSelect.value;
+    const options = ProfileConfig.getProfilesBySupplier(selectedSapak);
+
+    profileSelect.innerHTML = "";
+
+    options.forEach(profile => {
+        const optionEl = document.createElement("option");
+        optionEl.value = profile;
+        optionEl.textContent = profile;
+        profileSelect.appendChild(optionEl);
+    });
+
+    draw();
+}
+fillProfileOptions();
+
+// Finds a unit by number and fills the form fields with its properties
+function searchUnit(unitNum) {
+    if (!excelRows.length || !unitNum) return;
+
+    const row = excelRows.find(r => {
+        const val = r['יחידה'];
+        if (val === undefined) return false;
+        return String(val).trim() === String(unitNum).trim();
+    });
+
+    if (!row) return;
+
+    frontW.value = row['רוחב'] || '';
+    cabH.value = row['אורך'] || '';
+
+    // קביעת כיוון דלת לפי שם החלק
+    if (row['שם החלק']) {
+        const partName = row['שם החלק'].toLowerCase();
+        if (partName.includes('ימין')) sideSelect.value = 'right';
+        else if (partName.includes('שמאל')) sideSelect.value = 'left';
+    }
+
+    // סוג חומר -> גוון + סוג פרופיל
+    if (row['סוג החומר']) {
+        const [color, type] = row['סוג החומר'].split('_');
+        document.getElementById('profileColor').value = color || '';
+
+        // חיפוש ספק לפי סוג הפרופיל
+        let foundSupplier = null;
+        for (const supplier in ProfileConfig.SUPPLIERS_PROFILES_MAP) {
+            if (ProfileConfig.SUPPLIERS_PROFILES_MAP[supplier].includes(type)) {
+                foundSupplier = supplier;
+                break;
+            }
+        }
+
+        if (foundSupplier) {
+            // עדכון הספק בשדה עם שם בעברית
+            sapakSelect.value = foundSupplier;
+            fillProfileOptions(); // עדכון הרשימה בהתאם לספק
+        }
+
+        profileSelect.value = type || '';
+    }
+
+    if (row['מלואה']) {
+        document.getElementById('glassModel').value = row['מלואה'];
+    }
+
+    draw();
+}
+
+//Overlay functions
+function showOverlay() {
+    const overlay = document.getElementById('overlay');
+    overlay.style.display = 'flex';
+    document.getElementById('overlayText').textContent = "שומר קבצים...";
+    document.getElementById('overlayAnimation').textContent = "⏳";
+}
+function hideOverlayPending() {
+    const overlay = document.getElementById('overlay');
+    document.getElementById('overlayText').textContent = "קבצים נשלחו להורדה. אנא אשרו הורדות בדפדפן.";
+    document.getElementById('overlayAnimation').textContent = "⬇️";
+    setTimeout(() => { overlay.style.display = 'none'; }, 3000);
+}
+
+function generatePDFForUnit(unitNumber) {
+    draw();
+    downloadPdf();
+}
+
+// Generates a PDF from the current SVG and unit details on the page.
+// Ensures Hebrew text uses the Alef font and applies all SVG styling and fixes.
+// Clones the SVG, applies computed styles, fixes Hebrew text, centers dimensions, replaces markers, and sizes note boxes.
+// Fits the SVG into the PDF page with proper scaling and margins.
+// Adds unit detail fields as labeled boxes alongside the SVG.
+// Adds supplier logos (PNG or SVG) to the PDF.
+// Validates required fields before saving.
+// Saves the PDF with a filename based on plan number, unit number, profile type, and side selection.
+// Catches and reports errors during the PDF generation process.
 async function downloadPdf() {
     try {
         const { jsPDF } = window.jspdf;
@@ -518,26 +354,6 @@ async function downloadPdf() {
 		const logo = ProfileConfig.getLogoBySupplier("avivi_svg"); 
 		await addLogoSvg(pdf, logo);
 
-        function validateRequiredFields(fields) {
-            let allValid = true;
-            for (let id of fields) {
-                const input = document.getElementById(id);
-                if (input) {
-                    if (input.value.trim() === '') {
-                        alert('אנא מלא את השדה: ' + input.previousElementSibling.textContent);
-                        input.style.border = '2px solid red';
-                        input.focus();
-                        allValid = false;
-                        break; // עוצר בלחיצה הראשונה
-                    } else {
-                        // אם השדה לא ריק – מחזיר את העיצוב הרגיל
-                        input.style.border = '';
-                    }
-                }
-            }
-            return allValid;
-        }
-
         const requiredFields = ['Sapak', 'planNum', 'unitNum', 'partName', 'profileType', 'profileColor', 'glassModel',];
         if (!validateRequiredFields(requiredFields)) return;
 
@@ -562,46 +378,11 @@ async function downloadPdf() {
     }
 }
 
-
-function addNoteRotated(svg, x, y, text, angle = 90) {
-    // מחשבים BBox זמני כדי להתאים את הריבוע
-    const tempText = document.createElementNS("http://www.w3.org/2000/svg", "text");
-    tempText.setAttribute("class", "note-text");
-    tempText.setAttribute("x", x);
-    tempText.setAttribute("y", y);
-    tempText.setAttribute("text-anchor", "middle");
-    tempText.setAttribute("dominant-baseline", "middle");
-    tempText.textContent = text;
-    svg.appendChild(tempText);
-
-    const bbox = tempText.getBBox();
-    svg.removeChild(tempText);
-
-    const padding = 10; // היה 10 – נותן עוד ביטחון להדפסה
-    const rectX = bbox.x - padding;
-    const rectY = bbox.y - padding;
-    const rectW = bbox.width + padding * 2;
-    const rectH = bbox.height + padding * 2;
-
-    svg.insertAdjacentHTML("beforeend", `
-    <g transform="rotate(${angle}, ${x}, ${y})">
-      <rect class="note-box"
-            x="${rectX}" y="${rectY}"
-            width="${rectW}" height="${rectH}"></rect>
-      <text class="note-text"
-            x="${x}" y="${y}"
-            text-anchor="middle"
-            dominant-baseline="middle">
-        ${text}
-      </text>
-    </g>
-  `);
-}
-
-const svg = document.getElementById('svg');
-const overlay = document.querySelector('.svg-overlay');
-
-function drawSVG() {
+// Draws a cabinet/front panel diagram in an SVG element.
+// Includes frames, shelves, drill holes, dimensions, and rotated notes
+// based on user input and profile settings.
+// Also updates an HTML readout with the cabinet dimensions.
+function draw() {
     const width = parseFloat(document.getElementById('frontW').value);
     const height = parseFloat(document.getElementById('cabH').value);
     const topDistance = parseFloat(document.getElementById('topDistance').value);
@@ -969,65 +750,18 @@ function drawSVG() {
     expandViewBoxToContent(svg); // ⬅️ הוסף את השורה הזו
 }
 
-const downloadBtn = document.getElementById('downloadBtn');
-if (downloadBtn) {
-    downloadBtn.addEventListener('click', async (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        try { await downloadPdf(); }
-        catch (err) {
-            console.error('[downloadPdf] failed:', err);
-            alert('אירעה שגיאה בייצוא PDF. ראה קונסול.');
-        }
-    });
-}
-
-const sapakSelect = document.getElementById("Sapak");
-const profileSelect = document.getElementById("profileType");
-const frontW = document.getElementById("frontW");
-const cabH = document.getElementById("cabH");
-const topDistance = document.getElementById("topDistance");
-const holeDiameter = document.getElementById("holeDiameter");
-const rightInset = document.getElementById("rightInset");
-const leftInset = document.getElementById("leftInset");
-const unitContainer = document.getElementById("unitNum").parentElement;
-
-let unitNumInput = document.getElementById("unitNum"); // משתנה שמצביע כרגע ל-input
-let excelRows = []; // נשמור כאן את הנתונים מהקובץ
-
-// פונקציה למילוי profileType
-function fillProfileOptions() {
-    const selectedSapak = sapakSelect.value;
-    const options = ProfileConfig.getProfilesBySupplier(selectedSapak);
-
-    profileSelect.innerHTML = "";
-
-    options.forEach(profile => {
-        const optionEl = document.createElement("option");
-        optionEl.value = profile;
-        optionEl.textContent = profile;
-        profileSelect.appendChild(optionEl);
-    });
-
-    // אחרי שמילאנו מחדש – נעדכן גם את השרטוט
-    drawSVG();
-}
-
-// מילוי בפעם הראשונה לפי הספק שנבחר כבר
-fillProfileOptions();
-
-// מאזין לשינוי בספק
+//Listeners
 sapakSelect.addEventListener("change", fillProfileOptions);
-sapakSelect.addEventListener("change", drawSVG);
-profileSelect.addEventListener("change", drawSVG);
-frontW.addEventListener("change", drawSVG);
-cabH.addEventListener("change", drawSVG);
-topDistance.addEventListener("change", drawSVG);
-holeDiameter.addEventListener("change", drawSVG);
-rightInset.addEventListener("change", drawSVG);
-leftInset.addEventListener("change", drawSVG);
+sapakSelect.addEventListener("change", draw);
+profileSelect.addEventListener("change", draw);
+frontW.addEventListener("change", draw);
+cabH.addEventListener("change", draw);
+topDistance.addEventListener("change", draw);
+holeDiameter.addEventListener("change", draw);
+rightInset.addEventListener("change", draw);
+leftInset.addEventListener("change", draw);
 
-// טעינת קובץ Excel
+// Load and process Excel file
 excelFile.addEventListener("change", function (e) {
     const file = e.target.files[0];
     if (!file) return;
@@ -1119,81 +853,23 @@ excelFile.addEventListener("change", function (e) {
     reader.readAsArrayBuffer(file);
 });
 
-// חיפוש שורה לפי מספר יחידה
-function searchUnit(unitNum) {
-    if (!excelRows.length || !unitNum) return;
-
-    const row = excelRows.find(r => {
-        const val = r['יחידה'];
-        if (val === undefined) return false;
-        return String(val).trim() === String(unitNum).trim();
-    });
-
-    if (!row) return;
-
-    frontW.value = row['רוחב'] || '';
-    cabH.value = row['אורך'] || '';
-
-    // קביעת כיוון דלת לפי שם החלק
-    if (row['שם החלק']) {
-        const partName = row['שם החלק'].toLowerCase();
-        if (partName.includes('ימין')) sideSelect.value = 'right';
-        else if (partName.includes('שמאל')) sideSelect.value = 'left';
-    }
-
-    // סוג חומר -> גוון + סוג פרופיל
-    if (row['סוג החומר']) {
-        const [color, type] = row['סוג החומר'].split('_');
-        document.getElementById('profileColor').value = color || '';
-
-        // חיפוש ספק לפי סוג הפרופיל
-        let foundSupplier = null;
-        for (const supplier in ProfileConfig.SUPPLIERS_PROFILES_MAP) {
-            if (ProfileConfig.SUPPLIERS_PROFILES_MAP[supplier].includes(type)) {
-                foundSupplier = supplier;
-                break;
-            }
-        }
-
-        if (foundSupplier) {
-            // עדכון הספק בשדה עם שם בעברית
-            sapakSelect.value = foundSupplier;
-            fillProfileOptions(); // עדכון הרשימה בהתאם לספק
-        }
-
-        profileSelect.value = type || '';
-    }
-
-    if (row['מלואה']) {
-        document.getElementById('glassModel').value = row['מלואה'];
-    }
-
-    drawSVG();
-}
-
-// חיפוש בלייב כשכותבים בשדה יחידה
+// Search and display unit details when unit number is selected or typed
 unitNumInput.addEventListener("input", function () {
     searchUnit(this.value);
 });
 
-const batchSaveBtn = document.getElementById("batchSaveBtn");
+// Single PDF generation for the currently selected unit
+downloadBtn.addEventListener("click", async (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    try { await downloadPdf(); }
+    catch (err) {
+        console.error('[downloadPdf] failed:', err);
+        alert('אירעה שגיאה בייצוא PDF. ראה קונסול.');
+    }
+});
 
-function showOverlay() {
-    const overlay = document.getElementById('overlay');
-    overlay.style.display = 'flex';
-    document.getElementById('overlayText').textContent = "שומר קבצים...";
-    document.getElementById('overlayAnimation').textContent = "⏳";
-}
-
-function hideOverlayPending() {
-    const overlay = document.getElementById('overlay');
-    document.getElementById('overlayText').textContent = "קבצים נשלחו להורדה. אנא אשרו הורדות בדפדפן.";
-    document.getElementById('overlayAnimation').textContent = "⬇️";
-    setTimeout(() => {
-        overlay.style.display = 'none';
-    }, 3000); // 3 שניות לפני הסתרה
-}
-
+// Batch generate PDFs for all corner cabinet units in the loaded Excel file
 batchSaveBtn.addEventListener("click", async function () {
     if (!excelRows.length) return alert("אין קובץ Excel טעון!");
 
@@ -1248,16 +924,7 @@ batchSaveBtn.addEventListener("click", async function () {
     hideOverlayPending(); // מציג ✓ בסוף
 });
 
-function generatePDFForUnit(unitNumber) {
-    // הפונקציה שלך שמייצרת PDF על פי הערכים הנוכחיים בשדות
-    drawSVG(); // אם צריך לעדכן את השרטוט לפני ההורדה
-    // כאן הקוד ליצירת PDF והורדתו
-    downloadPdf();
-}
-
-const excelFileInput = document.getElementById('excelFile');
-const fileNameSpan = document.querySelector('.file-name');
-
+// Update displayed file name when a new Excel file is selected
 excelFileInput.addEventListener('change', () => {
     if (excelFileInput.files.length > 0) {
         fileNameSpan.textContent = excelFileInput.files[0].name;
@@ -1266,5 +933,5 @@ excelFileInput.addEventListener('change', () => {
     }
 });
 
-// הפעלה ראשונית
-drawSVG();
+// First draw
+draw();
