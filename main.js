@@ -782,6 +782,25 @@ excelFile.addEventListener("change", function (e) {
         // range: 6 => להתחיל מהשורה 7 (B7) שבה יש כותרות
         excelRows = XLSX.utils.sheet_to_json(sheet, { range: 6 });
 
+        // המרה של GENESIS לפורמט MT59_ג'נסיס והעברת הקוד לעמודת מלואה
+        excelRows = excelRows.map(r => {
+            if (r['סוג החומר'] && String(r['סוג החומר']).toUpperCase().includes("GENESIS")) {
+                const parts = String(r['סוג החומר']).split('_');
+
+                // קוד זכוכית (כל מה אחרי _) אם קיים
+                const glassCode = parts.length > 1 ? parts[1] : null;
+
+                // סוג חומר בפורמט MT59_ג'נסיס
+                r['סוג החומר'] = "MT59_ג'נסיס";
+
+                // שמירת הקוד בעמודת מלואה
+                if (glassCode) {
+                    r['מלואה'] = glassCode;
+                }
+            }
+            return r;
+        });
+
         console.log("עמודות שהתקבלו:", Object.keys(excelRows[0]));
         console.log("דוגמה לשורה ראשונה:", excelRows[0]);
 
