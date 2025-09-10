@@ -1,7 +1,7 @@
 const PDF_ORIENTATION = 'l';       // landscape
 const PDF_SIZE = 'a4';             // Paper size
 const PAGE_MARGIN_MM = 1;          // Margin in mm
-const EXTRA_SCALE = 1;          // Extra scaling factor for better readability
+const EXTRA_SCALE = 1;             // Extra scaling factor for better readability
 
 // Print settings
 const PRINT_MIN_MARGIN_MM = 10;   // Minimum margin in mm to avoid cutting
@@ -146,51 +146,20 @@ function fixHebrewText(svgRoot) {
 function centerDimensionNumbers(svgRoot) {
     const numRegex = /^[\d\s\.\-+×xX*]+(?:mm|מ"מ|)$/;
 
-    // גודל האופסט מהקו (יכול להיות חיובי או שלילי)
-    const offset = 20; // ניתן לשנות את הערך לפי הצורך
-
     svgRoot.querySelectorAll('text').forEach(t => {
         const raw = t.textContent || '';
         const txt = raw.replace(/\s+/g, '');
         if (!txt) return;
 
         if (numRegex.test(txt)) {
-            // מרכז אופקי
+            // מרכוז אופקי: מרכז את הטקסט על נקודת ה-x שלו.
             t.setAttribute('text-anchor', 'middle');
 
-            // **שורה חדשה לשינוי גודל הפונט**
-            t.setAttribute('font-size', '15'); // הגדלתי מ-15 ל-18
-            t.setAttribute('font-family', 'Alef');
-
-            // --- הערות שלך: ביטלתי dominant-baseline / alignment-baseline כדי לא לשבור סיבוב
-            t.setAttribute('dominant-baseline', 'middle');
+            // מרכוז אנכי: ממקם את קו הבסיס של הטקסט במרכז האנכי של ה-line box.
             t.setAttribute('alignment-baseline', 'middle');
-            t.setAttribute('dy', '0.35em');
 
-            // אם הטקסט מסתובב, לחשב מחדש את ה-x וה-y עם אופסט קטן
-            const transform = t.getAttribute('transform');
-            if (transform && transform.includes('rotate')) {
-                const match = /rotate\(([-\d.]+),\s*([-\d.]+),\s*([-\d.]+)\)/.exec(transform);
-                if (match) {
-                    const xRot = parseFloat(match[2]);
-                    const yRot = parseFloat(match[3]);
-                    // הזזת הטקסט מהקו
-                    const angle = parseFloat(match[1]);
-                    if (Math.abs(angle) === 90) {
-                        // טקסט אנכי: הזזה אופקית
-                        t.setAttribute('x', xRot);
-                        t.setAttribute('y', yRot - 12);
-                    } else {
-                        // טקסט אופקי: הזזה אנכית
-                        t.setAttribute('x', xRot);
-                        t.setAttribute('y', yRot);
-                    }
-                }
-            } else {
-                // טקסט אופקי רגיל: הזזה אנכית מהקו
-                const y = parseFloat(t.getAttribute('y') || '0');
-                t.setAttribute('y', y - offset + 5);
-            }
+            // ** שינוי גודל הפונט **
+            t.setAttribute('font-size', '17');
         }
     });
 }

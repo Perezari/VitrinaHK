@@ -241,10 +241,12 @@ async function downloadPdf() {
 
         const marginForPrint = Math.max(PAGE_MARGIN_MM, PRINT_MIN_MARGIN_MM);
         const displayExtra = Math.min(EXTRA_SCALE, 1.0);
+        const extraPaddingTop = 10; // מ"מ
         const box = fitAndPlaceBox(
-            pdfWidth, pdfHeight, vbWidth, vbHeight,
+            pdfWidth, pdfHeight - extraPaddingTop, vbWidth, vbHeight,
             marginForPrint, displayExtra, PRINT_SAFE_SHRINK, PRINT_ALIGN
         );
+        box.y += extraPaddingTop; // דוחף את השרטוט למטה
 
         const options = { x: box.x, y: box.y, width: box.width, height: box.height, fontCallback: () => 'Alef' };
         let converted = false;
@@ -323,36 +325,36 @@ async function downloadPdf() {
             const logoHeight = 25;
             pdf.addImage(logo, "PNG", 10, 10, logoWidth, logoHeight);
         }
-		
-		async function addLogoSvg(pdf, logo) {
-			if (!logo) return;
 
-			let svgText;
+        async function addLogoSvg(pdf, logo) {
+            if (!logo) return;
 
-			// בדיקה אם זה Data URI (base64)
-			if (logo.startsWith("data:image/svg+xml")) {
-				const base64 = logo.split(",")[1];
-				svgText = atob(base64);
-			} else {
-				// SVG כטקסט רגיל
-				svgText = logo;
-			}
+            let svgText;
 
-			// ממירים ל־DOM
-			const svgElement = new DOMParser().parseFromString(svgText, "image/svg+xml").documentElement;
+            // בדיקה אם זה Data URI (base64)
+            if (logo.startsWith("data:image/svg+xml")) {
+                const base64 = logo.split(",")[1];
+                svgText = atob(base64);
+            } else {
+                // SVG כטקסט רגיל
+                svgText = logo;
+            }
 
-			// מוסיפים ל־PDF
-			await pdf.svg(svgElement, {
-				x: 10,
-				y: 10,
-				width: 40,
-				height: 25
-			});
-		}
+            // ממירים ל־DOM
+            const svgElement = new DOMParser().parseFromString(svgText, "image/svg+xml").documentElement;
 
-		// לוגו מ־ProfileConfig (יכול להיות טקסט או Data URI)
-		const logo = ProfileConfig.getLogoBySupplier("avivi_svg"); 
-		await addLogoSvg(pdf, logo);
+            // מוסיפים ל־PDF
+            await pdf.svg(svgElement, {
+                x: 10,
+                y: 10,
+                width: 40,
+                height: 25
+            });
+        }
+
+        // לוגו מ־ProfileConfig (יכול להיות טקסט או Data URI)
+        const logo = ProfileConfig.getLogoBySupplier("avivi_svg");
+        await addLogoSvg(pdf, logo);
 
         const requiredFields = ['Sapak', 'planNum', 'unitNum', 'partName', 'profileType', 'profileColor', 'glassModel',];
         if (!validateRequiredFields(requiredFields)) return;
@@ -393,6 +395,15 @@ function draw() {
     const numHoles = 4;
     const profileType = document.getElementById('profileType').selectedOptions[0].text;
     const settings = ProfileConfig.getProfileSettings(profileType);
+    const padX = 500, padY = 50;
+
+    // חישוב גודל ה-viewBox המלא כולל כל האלמנטים
+    const totalWidth = padX + width + 480; // מרחב נוסף למידות
+    const totalHeight = padY + height + 150; // מרחב נוסף למידות תחתונות
+
+    // הגדרת viewBox שיאפשר התאמה אוטומטית
+    svg.setAttribute('viewBox', `0 0 ${totalWidth} ${totalHeight}`);
+    svg.setAttribute('preserveAspectRatio', 'xMidYMid meet');
 
     // ברירות מחדל
     let GERONG = settings.hasGerong;
