@@ -1,4 +1,4 @@
-# HK TOP Front Vitrina Configurator
+# HK TOP Front Vitrina Configurator 📐
 
 ![Language](https://img.shields.io/badge/language-JavaScript-yellow.svg)
 ![Frontend](https://img.shields.io/badge/frontend-HTML%2FCSS-orange.svg)
