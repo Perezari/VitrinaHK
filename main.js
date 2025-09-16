@@ -275,10 +275,21 @@ async function downloadPdf() {
         const lineHeight = 7;
 
         function fixHebrew(text) {
-            return text.split('').reverse().join('');
+            if (!text) return '';
+
+            // זיהוי עברית
+            const hebrewRegex = /[\u0590-\u05FF]/;
+
+            if (hebrewRegex.test(text)) {
+                // אם יש עברית – נהפוך את כל המחרוזת
+                return text.split('').reverse().join('');
+            }
+
+            // אחרת אנגלית/מספרים – משאירים כמו שזה
+            return text;
         }
 
-        function addFieldBox(label, value, width = 25, height = 10) {
+        function addFieldBox(label, value, width = 40, height = 10) {
             if (!value) return;
             pdf.setFont('Alef', 'normal');
             pdf.setFontSize(12);
@@ -288,17 +299,11 @@ async function downloadPdf() {
             pdf.setLineWidth(0.3);
             pdf.roundedRect(textX - width, textY, width, height, 3, 3, 'FD');
 
-            const fixedValue = (label === 'מספר יחידה'
-                || label === 'הכנה עבור'
-                || label === 'גוון פרופיל'
-                || label === 'מספר תוכנית'
-                || label === 'סוג זכוכית')
-                ? value
-                : fixHebrew(value);
+            const fixedValue = fixHebrew(value);
+            const fixedLabel = fixHebrew(label);
 
             pdf.text(fixedValue, textX - width / 2, textY + height / 2, { align: 'center', baseline: 'middle' });
 
-            const fixedLabel = fixHebrew(label);
             pdf.setFontSize(12);
             pdf.text(fixedLabel, textX - width / 2, textY - 1.5, { align: 'center' });
 
