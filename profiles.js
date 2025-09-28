@@ -7,7 +7,7 @@ const SUPPLIERS_PROFILES_MAP = {
     ],
     "nilsen": [
         "דגם424",
-        "ג'נסיס",
+        "GENESIS",
         "מאיה",
         "דגם19",
         "דגם427"
@@ -69,7 +69,7 @@ const PROFILE_SETTINGS = {
         "rightNotes": "הכנה לצירים",
         "LeftNotes": "הכנה לצירים"
     },
-    "ג'נסיס": {
+    "GENESIS": {
         "innerFrameStroke": "#2c3e50",
         "innerFrameStrokeWidth": 0.5,
         "innerFrameFill": "none",

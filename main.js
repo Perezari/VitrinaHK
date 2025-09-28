@@ -272,27 +272,66 @@ function searchUnit(unitNum) {
         else if (partName.includes('שמאל')) sideSelect.value = 'left';
     }
 
-    // סוג חומר -> גוון + סוג פרופיל
+    // לוגיקה חדשה לזיהוי פרופיל וצבע
     if (row['סוג החומר']) {
-        const [color, type] = row['סוג החומר'].split('_');
-        document.getElementById('profileColor').value = color || '';
+        const materialType = String(row['סוג החומר']).trim();
 
-        // חיפוש ספק לפי סוג הפרופיל
-        let foundSupplier = null;
-        for (const supplier in ProfileConfig.SUPPLIERS_PROFILES_MAP) {
-            if (ProfileConfig.SUPPLIERS_PROFILES_MAP[supplier].includes(type)) {
-                foundSupplier = supplier;
+        // חיפוש הפרופיל בהגדרות
+        let foundProfileType = null;
+        let remainingText = materialType;
+
+        // חיפוש בכל סוגי הפרופילים בהגדרות
+        for (const profileType in ProfileConfig.PROFILE_SETTINGS) {
+            if (materialType.includes(profileType)) {
+                foundProfileType = profileType;
+                // הסרת סוג הפרופיל מהטקסט כדי לקבל את הצבע
+                remainingText = materialType.replace(profileType, '').replace(/^_+|_+$/g, ''); // הסרת _ בהתחלה וסוף
                 break;
             }
         }
 
-        if (foundSupplier) {
-            // עדכון הספק בשדה עם שם בעברית
-            sapakSelect.value = foundSupplier;
-            fillProfileOptions(); // עדכון הרשימה בהתאם לספק
-        }
+        if (foundProfileType) {
+            // הגדרת הצבע (מה שנשאר אחרי הסרת הפרופיל)
+            document.getElementById('profileColor').value = remainingText || '';
 
-        profileSelect.value = type || '';
+            // מציאת הספק המתאים לפרופיל
+            let foundSupplier = null;
+            for (const supplier in ProfileConfig.SUPPLIERS_PROFILES_MAP) {
+                if (ProfileConfig.SUPPLIERS_PROFILES_MAP[supplier].includes(foundProfileType)) {
+                    foundSupplier = supplier;
+                    break;
+                }
+            }
+
+            if (foundSupplier) {
+                sapakSelect.value = foundSupplier;
+                fillProfileOptions();
+            }
+
+            profileSelect.value = foundProfileType;
+        } else {
+            // אם לא נמצא פרופיל בהגדרות, נשתמש בלוגיקה הישנה כגיבוי
+            const parts = materialType.split('_');
+            if (parts.length >= 2) {
+                document.getElementById('profileColor').value = parts[0] || '';
+                const profileType = parts[1];
+
+                let foundSupplier = null;
+                for (const supplier in ProfileConfig.SUPPLIERS_PROFILES_MAP) {
+                    if (ProfileConfig.SUPPLIERS_PROFILES_MAP[supplier].includes(profileType)) {
+                        foundSupplier = supplier;
+                        break;
+                    }
+                }
+
+                if (foundSupplier) {
+                    sapakSelect.value = foundSupplier;
+                    fillProfileOptions();
+                }
+
+                profileSelect.value = profileType || '';
+            }
+        }
     }
 
     if (row['מלואה']) {
@@ -926,23 +965,41 @@ excelFile.addEventListener("change", function (e) {
 
         const sheet = workbook.Sheets[workbook.SheetNames[0]];
 
-        // range: 6 => להתחיל מהשורה 7 (B7) שבה יש כותרות
-        excelRows = XLSX.utils.sheet_to_json(sheet, { range: 6 });
+        // קודם נקרא את הכותרות (שורה 6 = index 6 -> השורה ה-7 בפועל)
+        const headers = XLSX.utils.sheet_to_json(sheet, {
+            range: 6,
+            header: 1
+        })[0]; // השורה הראשונה בטווח
+
+        // עכשיו נקרא את השורות החל מהשורה שאחריה (range: 7)
+        // ונכריח להשתמש בכותרות שקיבלנו
+        excelRows = XLSX.utils.sheet_to_json(sheet, {
+            range: 7,        // מתחיל מהשורה שאחרי הכותרות
+            header: headers, // שימוש בכותרות ידניות
+            defval: "",      // לא לאבד תאים ריקים
+            raw: true,
+            blankrows: true
+        });
 
         // המרה של GENESIS לפורמט MT59_ג'נסיס והעברת הקוד לעמודת מלואה
         excelRows = excelRows.map(r => {
             if (r['סוג החומר'] && String(r['סוג החומר']).toUpperCase().includes("GENESIS")) {
-                const parts = String(r['סוג החומר']).split('_');
+                const materialType = String(r['סוג החומר']);
+                const genesisIndex = materialType.toUpperCase().indexOf("GENESIS");
 
-                // קוד זכוכית (כל מה אחרי _) אם קיים
-                const glassCode = parts.length > 1 ? parts[1] : null;
+                // כל מה שנשאר אחרי GENESIS
+                let remainder = materialType.substring(genesisIndex + "GENESIS".length);
 
-                // סוג חומר בפורמט MT59_ג'נסיס
-                r['סוג החומר'] = "MT59_ג'נסיס";
+                // אם מתחיל ב-_ אז מסירים את ה-_ הראשון בלבד
+                if (remainder.startsWith('_')) {
+                    remainder = remainder.substring(1);
+                }
 
-                // שמירת הקוד בעמודת מלואה
-                if (glassCode) {
-                    r['מלואה'] = glassCode;
+                r['סוג החומר'] = "GENESIS_MT59";
+
+                // שמירת העודף בעמודת מלואה אם קיים
+                if (remainder) {
+                    r['מלואה'] = remainder;
                 }
             }
             return r;
@@ -1015,6 +1072,47 @@ excelFile.addEventListener("change", function (e) {
         });
 
         searchUnit(unitNumInput.value);
+
+        sapakSelect.disabled = true;
+        sapakSelect.title = "שדה זה נטען אוטומטית מהקובץ ולא ניתן לשינוי";
+
+        profileSelect.disabled = true;
+        profileSelect.title = "שדה זה נטען אוטומטית מהקובץ ולא ניתן לשינוי";
+
+        planNum.readOnly = true;
+        planNum.disabled = true;
+        planNum.style.backgroundColor = "#f8f9fb";
+        planNum.style.color = '#888888';
+        planNum.style.userSelect = 'none';
+        planNum.title = "שדה זה נטען אוטומטית מהקובץ ולא ניתן לשינוי";
+
+        glassModel.readOnly = true;
+        glassModel.disabled = true;
+        glassModel.style.backgroundColor = "#f8f9fb";
+        glassModel.style.color = '#888888';
+        glassModel.style.userSelect = 'none';
+        glassModel.title = "שדה זה נטען אוטומטית מהקובץ ולא ניתן לשינוי";
+
+        profileColor.readOnly = true;
+        profileColor.disabled = true;
+        profileColor.style.backgroundColor = "#f8f9fb";
+        profileColor.style.color = '#888888';
+        profileColor.style.userSelect = 'none';
+        profileColor.title = "שדה זה נטען אוטומטית מהקובץ ולא ניתן לשינוי";
+
+        frontW.readOnly = true;
+        frontW.disabled = true;
+        frontW.style.backgroundColor = "#f8f9fb";
+        frontW.style.color = '#888888';
+        frontW.style.userSelect = 'none';
+        frontW.title = "שדה זה נטען אוטומטית מהקובץ ולא ניתן לשינוי";
+
+        cabH.readOnly = true;
+        cabH.disabled = true;
+        cabH.style.backgroundColor = "#f8f9fb";
+        cabH.style.color = '#888888';
+        cabH.style.userSelect = 'none';
+        cabH.title = "שדה זה נטען אוטומטית מהקובץ ולא ניתן לשינוי";
     };
     reader.readAsArrayBuffer(file);
 });
