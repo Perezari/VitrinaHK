@@ -1055,7 +1055,7 @@ excelFile.addEventListener("change", function (e) {
         console.log("דוגמה לשורה ראשונה:", excelRows[0]);
 
         // מציאת יחידות שיש להן לפחות דלת ימין/שמאל
-        const validUnits = [...new Set(
+        const allUnitsWithDoors = [...new Set(
             excelRows
                 .filter(r => {
                     const partName = (r['שם החלק'] || "").toLowerCase();
@@ -1063,9 +1063,9 @@ excelFile.addEventListener("change", function (e) {
                 })
                 .map(r => String(r['יחידה']).trim())
                 .filter(u => u && u !== "undefined")
-        )];
+        )].sort((a, b) => Number(a) - Number(b));
 
-        if (validUnits.length === 0) {
+        if (allUnitsWithDoors.length === 0) {
             alert("לא נמצאה אף יחידה עם דלת קלפה בקובץ. לא ניתן להמשיך.");
 
             // השבתת כפתורים
@@ -1095,29 +1095,348 @@ excelFile.addEventListener("change", function (e) {
             downloadBtn.style.cursor = "pointer";
         }
 
-        // הפיכת השדה unitNum לרשימה נפתחת אם הוא עדיין input
-        if (unitNumInput.tagName.toLowerCase() === "input") {
-            const select = document.createElement("select");
-            select.id = "unitNum";
-
-            validUnits.forEach((unit, index) => {
-                const option = document.createElement("option");
-                option.value = unit;
-                option.textContent = unit;
-                select.appendChild(option);
-
-                if (index === 0) select.value = unit;
+        // פונקציה לחילוץ פרמטרים של יחידה
+        function getUnitParams(unitNum) {
+            const candidates = excelRows.filter(r => {
+                const val = r['יחידה'];
+                return val !== undefined && String(val).trim() === String(unitNum).trim();
             });
 
-            unitContainer.replaceChild(select, unitNumInput);
-            unitNumInput = select;
+            if (!candidates.length) return null;
+
+            const HkDoor = candidates.find(r => {
+                const partName = (r['שם החלק'] || "").toLowerCase();
+                return partName.includes("קלפה");
+            });
+
+            let row = HkDoor;
+            if (!row) return null;
+
+            const height = row['אורך'] || '';
+            const width = (HkDoor)
+                ? (Number(HkDoor['רוחב']) || 0)
+                : row['רוחב'] || '';
+
+            let materialType = row['סוג החומר'] ? String(row['סוג החומר']).trim() : '';
+            let profileColor = '';
+
+            // חילוץ גוון פרופיל
+            let foundProfileType = null;
+            for (const profileType in ProfileConfig.PROFILE_SETTINGS) {
+                if (materialType.includes(profileType)) {
+                    foundProfileType = profileType;
+                    profileColor = materialType.replace(profileType, '').replace(/^_+|_+$/g, '');
+                    break;
+                }
+            }
+
+            if (!foundProfileType) {
+                const parts = materialType.split('_');
+                if (parts.length >= 2) {
+                    profileColor = parts[0] || '';
+                    foundProfileType = parts[1];
+                }
+            }
+
+            const glassModel = row['מלואה'] || '';
+            const partName = row['שם החלק'] || '';
+
+            return {
+                height: String(height),
+                width: String(width),
+                profile: foundProfileType || materialType,
+                color: profileColor,
+                glass: String(glassModel),
+                partName: String(partName)
+            };
         }
 
-        unitNumInput.addEventListener("change", function () {
-            searchUnit(this.value);
+        // קיבוץ יחידות לפי פרמטרים זהים
+        const unitGroups = {};
+
+        allUnitsWithDoors.forEach(unitNum => {
+            const params = getUnitParams(unitNum);
+            if (!params) return;
+
+            const key = `${params.height}|${params.width}|${params.profile}|${params.color}|${params.glass}|${params.partName}`;
+
+            if (!unitGroups[key]) {
+                unitGroups[key] = [];
+            }
+            unitGroups[key].push(unitNum);
         });
 
-        searchUnit(unitNumInput.value);
+        // יצירת רשימת יחידות מקובצות
+        const groupedUnits = Object.values(unitGroups).map(group => {
+            group.sort((a, b) => Number(a) - Number(b));
+            return group;
+        }).sort((a, b) => Number(a[0]) - Number(b[0]));
+
+        // יצירת custom dropdown עם checkboxes
+        if (unitNumInput.tagName.toLowerCase() === "input") {
+            // יצירת container לכל המערכת
+            const dropdownContainer = document.createElement("div");
+            dropdownContainer.style.position = "relative";
+            dropdownContainer.style.width = "100%";
+
+            // יצירת wrapper לשדה והחץ
+            const inputWrapper = document.createElement("div");
+            inputWrapper.style.position = "relative";
+            inputWrapper.style.width = "100%";
+
+            // יצירת השדה שמציג את הבחירות
+            const displayInput = document.createElement("input");
+            displayInput.type = "text";
+            displayInput.id = "unitNum";
+            displayInput.readOnly = true;
+            displayInput.style.cursor = "pointer";
+            displayInput.style.width = "100%";
+            displayInput.style.padding = "3px";
+            displayInput.style.border = "1px solid #dfe6e9";
+            displayInput.style.borderRadius = "10px";
+            displayInput.style.boxSizing = "border-box;";
+            displayInput.style.backgroundColor = "white";
+            displayInput.style.fontSize = "15px";
+            displayInput.style.color = "#2c3e50";
+            displayInput.style.transition = "all 0.3s ease";
+
+            // יצירת חץ dropdown
+            const dropdownArrow = document.createElement("span");
+            dropdownArrow.innerHTML = "▼";
+            dropdownArrow.style.position = "absolute";
+            dropdownArrow.style.left = "10px";
+            dropdownArrow.style.top = "50%";
+            dropdownArrow.style.transform = "translateY(-50%)";
+            dropdownArrow.style.pointerEvents = "none";
+            dropdownArrow.style.fontSize = "12px";
+            dropdownArrow.style.color = "#666";
+            dropdownArrow.style.transition = "transform 0.3s";
+
+            inputWrapper.appendChild(displayInput);
+            inputWrapper.appendChild(dropdownArrow);
+
+            // יצירת הרשימה הנפתחת
+            const dropdownList = document.createElement("div");
+            dropdownList.style.position = "absolute";
+            dropdownList.style.top = "100%";
+            dropdownList.style.left = "0";
+            dropdownList.style.right = "0";
+            dropdownList.style.maxHeight = "300px";
+            dropdownList.style.overflowY = "auto";
+            dropdownList.style.backgroundColor = "white";
+            dropdownList.style.border = "1px solid #ccc";
+            dropdownList.style.borderRadius = "4px";
+            dropdownList.style.marginTop = "2px";
+            dropdownList.style.display = "none";
+            dropdownList.style.zIndex = "1000";
+            dropdownList.style.boxShadow = "0 4px 6px rgba(0,0,0,0.1)";
+
+            // שמירת מצב הבחירות
+            const selectedUnits = new Map();
+
+            // פונקציה לעדכון התצוגה
+            function updateDisplay() {
+                const selected = [];
+                selectedUnits.forEach((checked, unit) => {
+                    if (checked) selected.push(unit);
+                });
+                selected.sort((a, b) => Number(a) - Number(b));
+                displayInput.value = selected.join(', ') || 'בחר יחידות...';
+
+                // עדכון היחידה הראשונה לשימוש ב-searchUnit
+                if (selected.length > 0) {
+                    searchUnit(selected[0]);
+                }
+            }
+
+            // משתנה לשמירת הקבוצה הפעילה
+            let activeGroupIndex = 0;
+
+            // פונקציה לעדכון מצב הקבוצות
+            function updateGroupsState(selectedGroupIndex) {
+                activeGroupIndex = selectedGroupIndex;
+
+                // איפוס כל היחידות
+                selectedUnits.forEach((value, key) => {
+                    selectedUnits.set(key, false);
+                });
+
+                // סימון היחידות בקבוצה הנבחרת
+                groupedUnits[selectedGroupIndex].forEach(unitNum => {
+                    selectedUnits.set(unitNum, true);
+                });
+
+                // עדכון חזותי של כל ה-checkboxes
+                groupedUnits.forEach((group, gIndex) => {
+                    group.forEach(unitNum => {
+                        const checkbox = document.getElementById(`unit-${unitNum}`);
+                        if (checkbox) {
+                            checkbox.checked = (gIndex === selectedGroupIndex);
+                        }
+                    });
+                });
+
+                updateDisplay();
+            }
+
+            let multiGroupCounter = 0; // מונה קבוצות אמיתיות
+
+            groupedUnits.forEach((group, groupIndex) => {
+                const groupDiv = document.createElement("div");
+                groupDiv.style.padding = "6px";
+                groupDiv.style.borderBottom = "1px dashed #4f46e5";
+                groupDiv.style.cursor = "pointer";
+                groupDiv.style.transition = "background-color 0.2s";
+
+                groupDiv.addEventListener("mouseenter", function () {
+                    this.style.backgroundColor = "#f0f7ff";
+                });
+                groupDiv.addEventListener("mouseleave", function () {
+                    this.style.backgroundColor = "transparent";
+                });
+
+                if (group.length === 1) {
+                    // יחידה בודדת → רדיו בלבד
+                    const singleUnit = group[0];
+                    const radioDiv = document.createElement("div");
+                    radioDiv.style.display = "flex";
+                    radioDiv.style.alignItems = "baseline";
+                    radioDiv.style.padding = "1px 0";
+                    radioDiv.style.cursor = "pointer";
+
+                    const radio = document.createElement("input");
+                    radio.type = "radio";
+                    radio.name = "unitGroup";
+                    radio.id = `unit-${singleUnit}`;
+                    radio.checked = (groupIndex === 0);
+                    radio.style.marginLeft = "8px";
+                    radio.style.cursor = "pointer";
+
+                    const label = document.createElement("label");
+                    label.htmlFor = `unit-${singleUnit}`;
+                    label.textContent = `יחידה ${singleUnit}`;
+                    label.style.cursor = "pointer";
+                    label.style.flex = "1";
+                    label.style.fontSize = "14px";
+
+                    selectedUnits.set(singleUnit, groupIndex === 0);
+
+                    radio.addEventListener("change", function () {
+                        selectedUnits.forEach((v, k) => selectedUnits.set(k, false));
+                        selectedUnits.set(singleUnit, this.checked);
+                        document.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+                            cb.checked = false;
+                        });
+                        updateDisplay();
+                    });
+
+                    radioDiv.appendChild(radio);
+                    radioDiv.appendChild(label);
+                    groupDiv.appendChild(radioDiv);
+                } else {
+                    // קבוצה עם כמה יחידות → רק כאן נספור קבוצה
+                    multiGroupCounter++;
+
+                    const groupHeader = document.createElement("div");
+                    groupHeader.style.fontWeight = "600";
+                    groupHeader.style.marginBottom = "6px";
+                    groupHeader.style.color = "#333";
+                    groupHeader.style.fontSize = "13px";
+                    groupHeader.style.display = "flex";
+                    groupHeader.style.alignItems = "center";
+
+                    const groupRadio = document.createElement("input");
+                    groupRadio.type = "radio";
+                    groupRadio.name = "unitGroup";
+                    groupRadio.id = `group-${multiGroupCounter}`;
+                    groupRadio.checked = (groupIndex === 0);
+                    groupRadio.style.marginLeft = "8px";
+                    groupRadio.style.cursor = "pointer";
+
+                    const groupLabel = document.createElement("span");
+                    groupLabel.textContent = `קבוצה ${multiGroupCounter}`;
+                    groupLabel.style.marginRight = "8px";
+
+                    groupHeader.appendChild(groupRadio);
+                    groupHeader.appendChild(groupLabel);
+                    groupDiv.appendChild(groupHeader);
+
+                    groupDiv.addEventListener("click", function () {
+                        groupRadio.checked = true;
+                        updateGroupsState(groupIndex);
+                    });
+
+                    group.forEach((unitNum) => {
+                        const checkboxDiv = document.createElement("div");
+                        checkboxDiv.style.display = "flex";
+                        checkboxDiv.style.alignItems = "flex-end";
+                        checkboxDiv.style.padding = "1px 0 4px 16px";
+                        checkboxDiv.style.cursor = "pointer";
+
+                        const checkbox = document.createElement("input");
+                        checkbox.type = "checkbox";
+                        checkbox.id = `unit-${unitNum}`;
+                        checkbox.checked = (groupIndex === 0);
+                        checkbox.style.marginLeft = "8px";
+                        checkbox.style.cursor = "pointer";
+
+                        const label = document.createElement("label");
+                        label.htmlFor = `unit-${unitNum}`;
+                        label.textContent = `יחידה ${unitNum}`;
+                        label.style.cursor = "pointer";
+                        label.style.flex = "1";
+                        label.style.fontSize = "14px";
+
+                        selectedUnits.set(unitNum, groupIndex === 0);
+
+                        checkbox.addEventListener("change", function (e) {
+                            e.stopPropagation();
+                            selectedUnits.set(unitNum, this.checked);
+                            updateDisplay();
+                        });
+
+                        checkboxDiv.addEventListener("click", function (e) {
+                            e.stopPropagation();
+                            if (e.target !== checkbox) {
+                                checkbox.checked = !checkbox.checked;
+                                selectedUnits.set(unitNum, checkbox.checked);
+                                updateDisplay();
+                            }
+                        });
+
+                        checkboxDiv.appendChild(checkbox);
+                        checkboxDiv.appendChild(label);
+                        groupDiv.appendChild(checkboxDiv);
+                    });
+                }
+
+                dropdownList.appendChild(groupDiv);
+            });
+
+            // טיפול בלחיצה על השדה
+            displayInput.addEventListener("click", function () {
+                const isVisible = dropdownList.style.display === "block";
+                dropdownList.style.display = isVisible ? "none" : "block";
+                dropdownArrow.style.transform = isVisible ? "translateY(-50%)" : "translateY(-50%) rotate(180deg)";
+            });
+
+            // סגירה בלחיצה מחוץ לרשימה
+            document.addEventListener("click", function (e) {
+                if (!dropdownContainer.contains(e.target)) {
+                    dropdownList.style.display = "none";
+                    dropdownArrow.style.transform = "translateY(-50%)";
+                }
+            });
+
+            dropdownContainer.appendChild(inputWrapper);
+            dropdownContainer.appendChild(dropdownList);
+
+            unitContainer.replaceChild(dropdownContainer, unitNumInput);
+            unitNumInput = displayInput;
+
+            // עדכון התצוגה הראשונית
+            updateDisplay();
+        }
 
         sapakSelect.disabled = true;
         sapakSelect.title = "שדה זה נטען אוטומטית מהקובץ ולא ניתן לשינוי";
