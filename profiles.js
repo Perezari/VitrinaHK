@@ -3,7 +3,8 @@ window.ProfileConfig = (function () {
 const SUPPLIERS_PROFILES_MAP = {
     "bluran": [
         "קואדרו",
-        "זירו"
+        "זירו",
+        "בארי"
     ],
     "nilsen": [
         "דגם424",
@@ -132,6 +133,24 @@ const PROFILE_SETTINGS = {
         "outerFrameFill": "none",
         "padSides": 72,
         "padTopBot": 72,
+        "hasGerong": true,
+        "frontDrillOffset": 8,
+        "extraDrillOffset": 0,
+        "hasDualDrill": false,
+        "defaultPrepFor": "צירים",
+        "description": "",
+        "rightNotes": "הכנה לצירים",
+        "LeftNotes": ""
+    },
+    "בארי": {
+        "innerFrameStroke": "#2c3e50",
+        "innerFrameStrokeWidth": 0.5,
+        "innerFrameFill": "none",
+        "outerFrameStroke": "#2c3e50",
+        "outerFrameStrokeWidth": 0.5,
+        "outerFrameFill": "none",
+        "padSides": 42,
+        "padTopBot": 42,
         "hasGerong": true,
         "frontDrillOffset": 8,
         "extraDrillOffset": 0,
