@@ -3,15 +3,15 @@ window.ProfileConfig = (function () {
 const SUPPLIERS_PROFILES_MAP = {
     "bluran": [
         "קואדרו",
-        "זירו",
-        "בארי"
+        "זירו"
     ],
     "nilsen": [
         "דגם424",
         "GENESIS",
         "מאיה",
         "דגם19",
-        "דגם427"
+        "דגם427",
+		"בארי"
     ]
 };
 const SUPPLIER_LOGOS = {
