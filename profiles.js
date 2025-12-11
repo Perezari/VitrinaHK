@@ -3,7 +3,8 @@ window.ProfileConfig = (function () {
 const SUPPLIERS_PROFILES_MAP = {
     "bluran": [
         "קואדרו",
-        "זירו"
+        "זירו",
+        "דומו"
     ],
     "nilsen": [
         "דגם424",
@@ -11,7 +12,7 @@ const SUPPLIERS_PROFILES_MAP = {
         "מאיה",
         "דגם19",
         "דגם427",
-		"בארי"
+        "בארי"
     ]
 };
 const SUPPLIER_LOGOS = {
@@ -159,6 +160,24 @@ const PROFILE_SETTINGS = {
         "description": "",
         "rightNotes": "הכנה לצירים",
         "LeftNotes": ""
+    },
+    "דומו": {
+        "innerFrameStroke": "#2c3e50",
+        "innerFrameStrokeWidth": 0.5,
+        "innerFrameFill": "none",
+        "outerFrameStroke": "#2c3e50",
+        "outerFrameStrokeWidth": 0.5,
+        "outerFrameFill": "none",
+        "padSides": 45,
+        "padTopBot": 45,
+        "hasGerong": true,
+        "frontDrillOffset": 8,
+        "extraDrillOffset": 0,
+        "hasDualDrill": false,
+        "defaultPrepFor": "צירים",
+        "description": "",
+        "rightNotes": "הכנה לצירים",
+        "LeftNotes": "הכנה לצירים"
     }
 };
 return {
