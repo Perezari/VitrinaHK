@@ -6,6 +6,9 @@
 
 A client-side web application designed to automate the generation of technical detail drawings for HK TOP front panels. This tool allows users to input specific dimensions and profile settings, visualize the drawing in real-time, and export it as a PDF. It also supports batch processing by importing data from Excel files, making it highly efficient for manufacturers and designers dealing with various cabinet configurations.
 
+## ✨ Tutorial
+https://code2tutorial.com/tutorial/a07e3255-3d50-407d-828e-1b0268cbc863/index.md
+
 ## ✨ Features
 
 *   **Dynamic Drawing Generation:** Real-time SVG rendering of HK TOP front panel technical drawings based on user inputs.
